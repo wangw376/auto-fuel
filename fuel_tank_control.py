@@ -184,7 +184,6 @@ def detect(opt):
                     break
         elif tag == 0:
             print('未开启摄像头')
-
             time.sleep(2)
 
             # Save results (image with detections)
