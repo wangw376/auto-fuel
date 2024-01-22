@@ -1,16 +1,6 @@
-# auto-fuel
-智能油料
+## 仓库名称：auto-fuel
+### 智能油料项目 车体识别部分代码 存储仓库
 
-常用命令
+1、使用git的常用命令：包括添加已修改文件、拉取分支、推送等
 
-git init
-
-git add README.md
-
-git commit -m "first commit"
-
-git branch -M main
-
-git remote add origin https://github.com/wangw376/auto-fuel.git
-
-git push -u origin main
+2、平时开发在develop分支进行，子功能完成后合并至main主分支作为发布版
