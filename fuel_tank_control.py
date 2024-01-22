@@ -2,28 +2,20 @@ import argparse
 import time
 from pathlib import Path
 
-import os
-import copy
 import cv2
-import torch
-import torch.backends.cudnn as cudnn
-from numpy import random
-
-from models.experimental import attempt_load
-from utils.datasets import LoadStreams, LoadImages
-from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
-    scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path, save_one_box
-from utils.plots import colors, plot_one_box
-from utils.torch_utils import select_device, load_classifier, time_synchronized
-
-import numpy as np
-import json
-import subprocess
-import shutil
-
 import modbus_tk
 import modbus_tk.defines as cst
 import modbus_tk.modbus_tcp as modbus_tcp
+import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
+
+from models.experimental import attempt_load
+from utils.datasets import LoadStreams
+from utils.general import check_img_size, check_requirements, non_max_suppression, scale_coords, strip_optimizer, \
+    set_logging, increment_path
+from utils.plots import colors, plot_one_box
+from utils.torch_utils import select_device, time_synchronized
 
 
 def solveEPnP(pred_points):
@@ -112,7 +104,6 @@ def detect(opt):
                                            agnostic=opt.agnostic_nms,
                                            kpt_label=kpt_label, nc=model.yaml['nc'], nkpt=model.yaml['nkpt'])
 
-
                 # Process detections
                 for i, det in enumerate(pred):  # detections per image
                     im0, frame = im0s[i].copy(), dataset.count
@@ -151,7 +142,7 @@ def detect(opt):
                             angle = ry
                             distance = translation_vector[2][0]
                             print('相机测算角度: ', round(angle, 3), '°')
-                            print('相机测算距离: ', round(distance/1000, 3), 'm')
+                            print('相机测算距离: ', round(distance / 1000, 3), 'm')
                             # 输出写入PLC的结果
                             plc_angle = int(angle * 10)
                             plc_distance = int(distance)
@@ -195,7 +186,6 @@ def detect(opt):
             print('未开启摄像头')
 
             time.sleep(2)
-
 
             # Save results (image with detections)
 
