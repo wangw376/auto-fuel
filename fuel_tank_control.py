@@ -35,9 +35,9 @@ def solveEPnP(pred_points):
          [0, 994.741072914622, 247.859498440559],
          [0, 0, 1]], dtype=np.double)
 
-    dist_coeffs = np.array(
-        (-0.434643650640820, 0.400527856579466, -0.431891889112567, 0, 0))  # Assuming no lens distortion
-    # dist_coeffs = np.array((0, 0, 0, 0, 0))  # Assuming no lens distortion
+    # dist_coeffs = np.array(
+    #     (-0.434643650640820, 0.400527856579466, -0.431891889112567, 0, 0))  # Assuming no lens distortion
+    dist_coeffs = np.array((0, 0, 0, 0, 0))  # Assuming no lens distortion
 
     (success, rotation_vector, translation_vector) = cv2.solvePnP(model_points, pred_points, camera_matrix,
                                                                   dist_coeffs,
@@ -193,7 +193,7 @@ def detect(opt):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='weights/20240114.pt', help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default='weights/20240303-best.pt', help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='0', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--img-size', nargs='+', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.80, help='object confidence threshold')
@@ -223,8 +223,8 @@ if __name__ == '__main__':
     check_requirements(exclude=('tensorboard', 'pycocotools', 'thop'))
 
     try:
-        # master = modbus_tcp.TcpMaster(host="192.168.2.10")  # PLC ip
-        master = modbus_tcp.TcpMaster(host="127.0.0.1")  # 车库ip
+        master = modbus_tcp.TcpMaster(host="192.168.2.10")  # PLC ip
+        # master = modbus_tcp.TcpMaster(host="127.0.0.1")  # 车库ip
         master.set_timeout(5.0)
         print("modbus connected")
 
