@@ -9,6 +9,10 @@ import modbus_tk.modbus_tcp as modbus_tcp
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import threading
+import time
+import math
+import random
 
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams
@@ -20,14 +24,32 @@ from utils.torch_utils import select_device, time_synchronized
 
 def solveEPnP(pred_points):
     # 3D model points.
-    model_points = np.array([(-343, 540, 0.0),
-                             (-343, -540, 0.0),
-                             (343, -540, 0.0),
-                             (343, 540, 0.0),
-                             (-343, 540, 660),
-                             (-343, -540, 660),
-                             (343, -540, 660),
-                             (343, 540, 660)])
+    model_points = np.array([(-345, 540-340, 0.0),
+                             (-345, -540-340, 0.0),
+                             (345, -540-340, 0.0),
+                             (345, 540-340, 0.0),
+                             (-345, 540-340, 615),
+                             (-345, -540-340, 615),
+                             (345, -540-340, 615),
+                             (345, 540-340, 615)])
+
+    # model_points = np.array([(-345, 540, 0.0),
+    #                          (-343, -540, 0.0),
+    #                          (343, -540, 0.0),
+    #                          (343, 540, 0.0),
+    #                          (-343, 540, 615),
+    #                          (-343, -540, 615),
+    #                          (343, -540, 615),
+    #                          (343, 540, 615)])
+
+    # model_points = np.array([(-345, 540 - 340, 0.0),
+    #                          (-343, -540 - 340, 0.0),
+    #                          (343, -540 - 340, 0.0),
+    #                          (343, 540 - 340, 0.0),
+    #                          (-343, 540 - 340, 615),
+    #                          (-343, -540 - 340, 615),
+    #                          (343, -540 - 340, 615),
+    #                          (343, 540 - 340, 615)])
 
     # 设置相机参数矩阵
     camera_matrix = np.array(
@@ -47,6 +69,8 @@ def solveEPnP(pred_points):
 
 
 def detect(opt):
+    last_arm_angle = 0
+    last_angle = 0
     global dataset
     source, weights, view_img, save_txt, imgsz, kpt_label = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, opt.kpt_label
 
@@ -84,7 +108,10 @@ def detect(opt):
         tags = master.execute(1, cst.READ_HOLDING_REGISTERS, 500, 1)
         print(tags[0])
         tag = tags[0]
-
+        cv2.namedWindow("detect", cv2.WINDOW_AUTOSIZE)
+        cv2.resizeWindow("detect", 1920, 1080)
+        cv2.moveWindow("detect", 0, 0)
+        # cv2.moveWindow("detect", 640, 300)
         if tag == 1:
             dataset = LoadStreams(source, img_size=imgsz, stride=stride)
             for path, img, im0s, vid_cap in dataset:
@@ -132,26 +159,59 @@ def detect(opt):
                                 pred_points[kip][0] = x_pt0
                                 pred_points[kip][1] = y_pt0
 
+                            print('-------------------------------------------')
                             '''--------------EPnP位姿估计，并输出结果--------------'''
                             rotation_vector, translation_vector = solveEPnP(pred_points)
                             rx = rotation_vector[0][0] * 57.3
                             ry = rotation_vector[1][0] * 57.3
                             rz = rotation_vector[2][0] * 57.3
-                            # 输出结果
-                            print('-------------------------------------------')
                             angle = ry
-                            distance = translation_vector[2][0]
+
+                            dx = translation_vector[0][0]
+                            print('dx: ', dx)
+                            dy = translation_vector[1][0]
+                            print('dy: ', dy)
+                            dz = translation_vector[2][0]
+                            print('dz: ', dz)
+                            # 输出结果
+                            # 相机光心到车体中心的距离的平方
+                            distance = math.sqrt(math.pow(dx, 2) + math.pow(dy, 2) + math.pow(dz, 2))
+                            print('distance: ', distance)
+                            # 相机安装高度
+                            vertical_distance = 2570
+                            # 计算车体到转轴的水平距离
+                            horizontal_distance = math.sqrt(math.pow(distance, 2) - math.pow(vertical_distance, 2))
+
+
                             print('相机测算角度: ', round(angle, 3), '°')
-                            print('相机测算距离: ', round(distance / 1000, 3), 'm')
+                            print('相机测算距离: ', round(horizontal_distance / 1000, 3), 'm')
+
                             # 输出写入PLC的结果
                             plc_angle = int(angle * 10)
-                            plc_distance = int(distance)
+
+                            plc_distance = int(horizontal_distance)
                             print('写入PLC的角度: ', plc_angle, '°*10')
                             print('写入PLC的距离: ', plc_distance, 'mm')
                             # 将角度/°、距离/mm信息写入寄存器指定位置
                             master.execute(1, cst.WRITE_MULTIPLE_REGISTERS, 501, output_value=[plc_angle])
                             master.execute(1, cst.WRITE_MULTIPLE_REGISTERS, 502, output_value=[plc_distance])
                             master.execute(1, cst.WRITE_MULTIPLE_REGISTERS, 503, output_value=[1])
+
+                            arm_angle = master.execute(1, cst.READ_HOLDING_REGISTERS, 506, 1)[0]
+
+                            arm_angle = arm_angle / 10
+                            print('机械臂测算角度：', arm_angle)
+
+                            diff_angle = abs(angle - last_angle)
+                            print('相机测算旋转角度：', format(diff_angle, '.3f'))
+                            diff_arm_angle = abs(arm_angle - last_arm_angle)
+                            print('机械臂旋转角度', format(diff_arm_angle, '.3f'))
+
+                            diff = abs(diff_arm_angle - diff_angle)
+                            print('旋转角度差：', format(diff, '.3f'))
+                            last_angle = angle
+                            last_arm_angle = arm_angle
+
 
                             c = int(cls)  # integer class
                             label = None if opt.hide_labels else (
@@ -164,7 +224,8 @@ def detect(opt):
                         '''----存图-----'''
                         vid_img_name = '%05d' % frame + '.jpg'
                         save_path3 = str(save_dir / vid_img_name)
-                        cv2.imwrite(save_path3, im0)  # 存检测图
+                        # 存检测图
+                        #cv2.imwrite(save_path3, im0)
                     else:
                         master.execute(1, cst.WRITE_MULTIPLE_REGISTERS, 503, output_value=[0])
                         print('未检测到目标')
@@ -191,9 +252,16 @@ def detect(opt):
     # print(f'Done. ({time.time() - t0:.3f}s)')
 
 
+# 通过向PLC的第505位写随机数来保证相机在工作
+def write_connected():
+    while True:
+        master.execute(1, cst.WRITE_MULTIPLE_REGISTERS, 505, output_value=[1])
+        time.sleep(5)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='weights/20240303-best.pt', help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default='weights/weights_0312/best_0312.pt', help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='0', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--img-size', nargs='+', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.80, help='object confidence threshold')
@@ -222,11 +290,16 @@ if __name__ == '__main__':
     print(opt)
     check_requirements(exclude=('tensorboard', 'pycocotools', 'thop'))
 
+
+
     try:
         master = modbus_tcp.TcpMaster(host="192.168.2.10")  # PLC ip
         # master = modbus_tcp.TcpMaster(host="127.0.0.1")  # 车库ip
         master.set_timeout(5.0)
         print("modbus connected")
+        # 创建线程t1对象
+        t1 = threading.Thread(target=write_connected, name='threa1')
+        t1.start()
 
         with torch.no_grad():
             if opt.update:  # update all models (to fix SourceChangeWarning)
